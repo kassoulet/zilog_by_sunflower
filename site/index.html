@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZILOG · a 1999 DOS demo, reverse-engineered to JS</title>
+<meta name="description" content="Sunflower's DOS demo ZILOG (1999) ported to JavaScript: playable in your browser, with the retro-computing context, the asm inner loops and the 3D scenes explained.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%230b0e14%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27%23f6ad55%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <h1>ZILOG</h1>
+  <p>A 1999 DOS demo by <b>Sunflower</b>, reverse-engineered and ported to JavaScript. Everything you see runs from the original code paths, rewritten function by function and checked against the real binary.</p>
+</header>
+<nav class="top"><a href="#play">Play</a><a href="#retro">Retro context</a><a href="#scenes">Scenes</a><a href="#music">Music</a><a href="#loops">Inner loops</a><a href="#3d">3D engine</a><a href="#port">Porting</a><a href="#credits">Credits</a></nav>
+<main>
+
+<section id="play">
+  <div class="player">
+    <div class="screen" id="stage">
+      <canvas id="screen" width="320" height="200" aria-label="ZILOG demo, 320 by 200"></canvas>
+      <div class="badge" id="badge"></div>
+      <div class="big" id="big"><button type="button" disabled>Loading…</button></div>
+    </div>
+    <div class="controls">
+      <button id="prev" title="Previous scene (←)" aria-label="Previous scene">⏮</button>
+      <button id="bplay" title="Play / pause (space)" aria-label="Play">▶</button>
+      <button id="next" title="Next scene (→)" aria-label="Next scene">⏭</button>
+      <div class="grow"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Position"></div>
+      <span class="time" id="time">0:00 / 0:00</span>
+      <button id="fs" title="Fullscreen (f)" aria-label="Fullscreen">⛶</button>
+    </div>
+    <div class="scenes" id="chips"></div>
+  </div>
+  <p class="hint">Space = pause · ← / → = previous / next scene · F = fullscreen. Native resolution is 320×200, scaled with nearest-neighbour like a CRT in a 1999 bedroom would not have bothered to.</p>
+</section>
+
+<section id="retro">
+  <h2>The retro context <small>DOS, 1999, the demoscene</small></h2>
+  <p>A <i>demo</i> is a program whose only purpose is to be watched: music, 3D, effects, all synchronised, all computed live on the machine rather than played back from video. The <b>demoscene</b> grew out of 1980s game-cracking intros and by the late 90s it was a competition of programming craft, graphics and tracker music, judged at "parties" and distributed on BBSs and FTP sites. ZILOG's own release notes say it all: <code>TYPE: dos demo — seems to work under windows, but please run from dos.</code></p>
+  <div class="grid">
+    <div class="card"><h4>Hardware target</h4><p>A Pentium-class PC with a VESA-capable graphics card and a Sound Blaster/Gravis UltraSound. 320×200 in true colour, which on a 1999 bus meant pushing 256 000 bytes per frame through a banked window or a linear framebuffer.</p></div>
+    <div class="card"><h4>DOS extender</h4><p>The executable is a <b>32-bit flat-model LE</b> program started by <b>PMODE/W 1.30</b> (Daredevil &amp; Tran), giving 32-bit protected mode with direct access to memory while still talking to BIOS/VESA through DOS services. Compiled with <b>Watcom C/C++32</b>, the compiler of choice for 32-bit DOS code.</p></div>
+    <div class="card"><h4>No GPU, one FPU</h4><p>Everything is rasterised in software. 3D transforms run on the x87 FPU (the Pentium could overlap an <code>fxch</code> with a floating-point op, which is why hand-tuned code is full of them), pixel work on integer ALUs with packed-byte tricks.</p></div>
+    <div class="card"><h4>Packed twice</h4><p>The binary is compressed with <b>UPX 0.82</b>, and the assets (63 files: textures, meshes, fonts, a 700&nbsp;KB tracker module) sit in a custom LZW container appended to the executable.</p></div>
+  </div>
+</section>
+
+<section id="scenes">
+  <h2>The scenes <small>eleven loops, driven by the music</small></h2>
+  <p>The demo has no timeline file. Its <code>main()</code> is a chain of <code>while (order &lt; N)</code> loops that read the tracker's current <b>order</b> and <b>row</b> from the sound player, so the picture changes exactly when the music moves on, and effects react to <i>sync markers</i> placed in the module. The port keeps this design: scene code receives the same <code>order*64+row</code> position and marker value, produced by a port of the music player. “▶” jumps the player to the scene.</p>
+  <div id="scene-list"></div>
+</section>
+
+<section id="music">
+  <h2>The music <small>a tracker player, rebuilt bit for bit</small></h2>
+  <p>The tune (“73 millions seconds”, <code>ana.u</code>, 700&nbsp;KB) is a <b>USLM</b> module for <i>Useless Sound System 1.04</i>: 28 channels, 60 orders of 64 rows, 57 patterns, 59 samples, 55 instruments, speed&nbsp;3 / tempo&nbsp;139. There is no public documentation of this format, so the player was reconstructed from the disassembly: file format, ~60 effect handlers, envelopes, period tables and the software mixer. The port reproduces the original's <b>Sound Blaster 16 IRQ structure</b> — every 884-frame block (20.045&nbsp;ms) runs all due ticks, then mixes — and was checked against the real machine code on all 10&nbsp;448 blocks of the song: order, row, per-voice state and every mixed 16-bit sample are identical.</p>
+  <p>The scene thresholds fall at these moments of the song: order 5 = 17.3&nbsp;s, 14 = 48.5&nbsp;s, 19 = 67.5&nbsp;s, 23 = 81.4&nbsp;s, 27 = 95.2&nbsp;s, 31 = 109.0&nbsp;s, 35 = 122.9&nbsp;s, 41 = 143.7&nbsp;s, 49 = 171.3&nbsp;s, 51 = 178.3&nbsp;s; the song ends at 209.4&nbsp;s.</p>
+</section>
+
+<section id="loops">
+  <h2>Inner loops <small>asm worth reading</small></h2>
+  <p>Disassembled from the unpacked binary (addresses are in the 32-bit flat image, load base <code>0x10000</code>). Highlighted lines are the clever part. Most of these are <b>1999 optimisation folklore</b>: no multiplies in the pixel loops, no divides, loop counters and coordinates hidden in registers, code that rewrites itself.</p>
+
+  <h3>1 · A box blur with no division: the running sum is a <i>pointer</i></h3>
+  <p><code>func_16cdd</code> blurs the 320×200 true-colour screen with a sliding window of width <i>w</i>. Instead of keeping a sum and dividing, each channel's sum is kept in a register that <i>starts at the base of a lookup table</i>; the table holds each value 0..255 repeated <i>w</i> times (built with <code>rep stosb</code>), so <code>[base+sum]</code> <b>is</b> <code>sum/w</code>. One pixel costs three adds, three subtracts, three table reads. The displacement <code>0x11111111</code> is a placeholder: the setup code <b>patches the loop</b> with the distance between source and destination, so the same code blurs screen→buffer without an extra register.</p>
+<pre class="asm">
+16d53: mov eax, [0x16b40]       ; eax = edi = ebp = base of the "divide by w" table
+16d58: mov edi, eax
+16d5a: mov ebp, eax
+ ...
+16dcd: mov ebx, [esi + 0x11111111]   ; incoming pixel (displacement patched at run time)
+16dd3: mov dl, bl
+>16dd5: add eax, edx             ; "sum" of channel 0  (a pointer into the table!)
+16dd7: mov dl, bh
+>16dd9: add edi, edx             ; channel 1
+16ddb: shr ebx, 8
+16dde: mov dl, bh
+>16de0: add ebp, edx             ; channel 2
+16de2: mov ebx, [esi + 0x11111111]   ; outgoing pixel ...
+16dea: sub eax, edx              ; ... subtracted the same way (sub eax/edi/ebp)
+16df7: mov bh, [ebp]             ; three table reads = three divisions
+16dfa: shl ebx, 8
+16dfd: mov bl, [eax]
+16dff: mov bh, [edi]
+16e01: mov [esi + 0x11111111], ebx   ; store the blurred pixel
+16e0b: jne 0x16dcd
+</pre>
+
+  <h3>2 · A texture span whose loop counter lives inside the fraction register</h3>
+  <p>The affine texture mapper (<code>0x2bbec</code>) keeps u and v as 8.16 fixed point. The 8-bit integer parts sit in <code>bl</code> and <code>bh</code>, so they <b>wrap at 256 texels for free</b>, and <code>[ebx*4]</code> is directly the texel address (textures are 256&nbsp;KB-aligned, their base lives in the high half of <code>ebx</code>). The fractional parts are added with <code>add</code> and their carry is folded into the integer coordinate with <code>adc</code>. The pixel count rides in <code>cx</code>, the low half of the register whose high half is u's fraction.</p>
+<pre class="asm">
+2bd66: mov eax, [ebx*4]          ; texel = tex[v&lt;&lt;8 | u], wrap-around for free
+2bd6d: add edx, ebp              ; v fraction += dv
+>2bd6f: adc bh, dh                ; carry -> v integer
+2bd71: add ecx, esi              ; u fraction (high half of ecx) += du
+>2bd73: adc bl, dl                ; carry -> u integer; the count in cx is untouched
+2bd75: mov [edi], eax
+2bd77: add edi, 4
+2bd7a: dec cx
+2bd7c: jne 0x2bd66
+</pre>
+
+  <h3>3 · Environment + texture in one pass: gradients patched into the loop</h3>
+  <p>The two-texture mode (used for the brown blob) interpolates <i>four</i> coordinates — environment u,v and surface u,v. The four gradients are <b>immediates written into the loop before it runs</b> (<code>0x11111111</code>, <code>0x11</code> are placeholders), so the inner loop is two loads, one add and four add/adc pairs. The second texture lives exactly 256&nbsp;KB after the first. The pixel is a plain 32-bit <code>add</code> of the two texels.</p>
+<pre class="asm">
+2f341: mov eax, [ebx*4]          ; environment texel
+2f348: add eax, [edx*4]          ; + surface texel (second texture, 256 KB further)
+2f34f: mov [edi], eax
+2f351: add edi, 4
+>2f354: add ecx, 0x11111111       ; each 0x11... below is patched by the setup code
+2f35a: adc bl, 0x11
+2f35d: add ebp, 0x11111111
+2f363: adc bh, 0x11
+2f366: add esi, 0x11111111
+2f36c: adc dl, 0x11
+2f36f: add bp, 0x1111
+2f374: adc dh, 0x11
+2f377: dec cx
+2f379: jne 0x2f341
+</pre>
+
+  <h3>4 · The whole sound mixer fits in six instructions per sample</h3>
+  <p>The Sound Blaster mixer (<code>0x3a6e0</code>) works at 44.1 kHz in 16-bit stereo with a 16.16 sample position. The 8-bit sample goes into <code>bl</code>; <code>bh</code> and <code>dh</code> hold the voice's left and right <b>volume rows</b> of a 65×256 table, so <code>[ebx*2]</code> is “sample × left volume” and <code>[edx*2]</code> “sample × right volume” — no multiply. The position's fraction advances with <code>add cx,step</code> and the carry is added to the sample pointer by <code>adc esi,ebp</code> (ebp = integer step).</p>
+<pre class="asm">
+3a6e0: mov bl, [esi]             ; 8-bit sample (bh = left volume row)
+>3a6e2: add cx, [0x3989a]         ; position fraction += step ...
+3a6e9: mov ax, [ebx*2]           ; left  = table[vol_l][sample]
+>3a6f1: adc esi, ebp              ; ... carry advances the sample pointer
+3a6f3: mov dl, bl                ; dh = right volume row
+3a6f5: add [edi], ax             ; accumulate into the 16-bit mix buffer
+3a6f8: mov ax, [edx*2]           ; right = table[vol_r][sample]
+3a700: add [edi + 2], ax
+</pre>
+
+  <h3>5 · 3×3 colour matrix without a single multiply</h3>
+  <p><code>func_22990</code> applies a colour-space transform (the YCbCr-like strip that pulses on the beat) using nine <i>table sums</i>: tables built at start-up hold <code>trunc(i·2²⁴·coef)</code> for each coefficient, so each output channel is three loads, two adds and a shift.</p>
+<pre class="asm">
+22a03: mov eax, [ebp + ebx*4]
+22a07: add eax, [ebp + ecx*4 + 0x400]
+22a0e: add eax, [ebp + edx*4 + 0x800]
+22a15: shr eax, 0x18
+22a18: add eax, 0x70
+</pre>
+
+  <h3>6 · A 2-D palette lookup in four instructions</h3>
+  <p>The colourised plasma strip of the lattice and intro scenes is <code>screen = LUT[(index &lt;&lt; 8) | blur]</code>: the two 8-bit planes are fetched into <code>al</code> and <code>ah</code>, which together form a 16-bit index into a 256×256 table of dwords. The counter runs from −64000 up to zero so the loop needs no compare.</p>
+<pre class="asm">
+22ba4: lea edi, [edi + ecx*4]    ; bias the base registers by -count ...
+22ba7: lea esi, [esi + ecx]
+22baa: lea ebx, [ebx + ecx]
+22bad: xor ecx, 0xffffffff       ; ... and negate the counter: loop runs up to 0
+22bb0: inc ecx
+>22bb1: mov al, [ebx + ecx]
+>22bb4: mov ah, [esi + ecx]
+>22bb7: mov ebp, [edx + eax*4]    ; one load = the final colour
+22bba: mov [edi + ecx*4], ebp
+22bbd: inc ecx
+22bbe: jne 0x22bb1
+</pre>
+
+  <h3>7 · A rotation matrix with fewer multiplies (Winograd's inner product)</h3>
+  <p>Mesh rotation (<code>0x17e5e</code>) never does three multiplies per output coordinate. It uses <code>x' = (m₀ + y)(m₁ + x) + z·m₂ − (m₀m₁ + x·y)</code>: the cross term <code>x·y</code> is computed once per vertex and shared by the three rows, and each row's <code>m₀m₁</code> is precomputed once per object. On a Pentium, where an FPU multiply took several cycles, that was a real saving.</p>
+<pre class="asm">
+17fc9: fld dword [ebp - 0x68]     ; x
+17fcc: fmul dword [ebp - 0x64]   ; * y
+17fcf: fstp dword [ebp - 0x6c]   ; x*y: computed once, used by all three rows
+17fd2: fld dword [ebp - 0x50]    ; m0
+17fd5: fadd dword [ebp - 0x64]   ; + y
+17fd8: fld dword [ebp - 0x4c]    ; m1
+17fdb: fadd dword [ebp - 0x68]   ; + x
+>17fde: fmulp st(1)               ; (m0 + y)(m1 + x)
+17fe0: fld dword [ebp - 0x60]
+17fe3: fmul dword [ebp - 0x48]   ; z * m2
+17fe6: faddp st(1)
+17fe8: fld dword [ebp - 0x2c]    ; precomputed m0*m1
+17feb: fadd dword [ebp - 0x6c]   ; + x*y
+17fee: fsubp st(1)               ; result
+</pre>
+
+  <h3>8 · The assets: an LZW bit reader that shifts one bit at a time</h3>
+  <p>All 63 assets are LZW-compressed. The decoder reads 9 to 12-bit codes LSB-first: it fetches three bytes at <code>bitpos/8</code>, then shifts the 24-bit value right by <code>bitpos&amp;7</code> <i>one bit at a time</i> with <code>shr al,1 / rcr bx,1</code>, and finally masks with a table indexed by <code>width−9</code>.</p>
+<pre class="asm">
+246a1: mov eax, [0x3eede]          ; bit position
+246a6: movzx ebx, word [0x3eed0]   ; current code width (9..12)
+246ad: add eax, ebx
+246af: xchg [0x3eede], eax         ; advance, keep the old position
+246b5: mov dx, ax
+246b8: and edx, 7                  ; bit offset inside the byte
+246bb: shr eax, 3                  ; byte offset
+246c6: mov ax, [esi]               ; 3 bytes = 24 bits
+246cf: mov al, [esi]
+246d2: mov cx, dx
+246d5: jcxz 0x246e1
+>246d8: shr al, 1                  ; 24-bit shift right, one bit per iteration
+>246da: rcr bx, 1
+246dd: dec cx
+246df: jne 0x246d8
+246f2: and ax, [ebx*2 + 0x3eed6]   ; mask table 0x1ff,0x3ff,0x7ff,0xfff
+</pre>
+
+  <h3>9 · <code>ftrunc</code>: truncating a float through the FPU control word</h3>
+  <p>Watcom's runtime has no <code>fisttp</code> (SSE3 did not exist). To truncate toward zero, the code rewrites the x87 rounding-control bits, runs <code>frndint</code>, and restores the control word. It is called from over 200 places in the demo's code, and it's why the port has a <code>trunc32()</code> next to a round-to-nearest-even <code>rne()</code>: the original mixes both.</p>
+<pre class="asm">
+1c472: push eax
+1c474: fnstcw [esp]              ; save the control word
+1c478: push dword [esp]
+>1c47b: mov byte [esp+1], 0x1f   ; RC = 11b: round toward zero
+>1c480: fldcw [esp]
+1c483: frndint                   ; ST0 = trunc(ST0)
+1c485: fldcw [esp+4]             ; restore
+1c48e: ret
+</pre>
+</section>
+
+<section id="3d">
+  <h2>The 3D engine <small>twelve meshes, ten render modes</small></h2>
+  <p>Models are stored in a trivial chunked format: <code>MOB:</code>, then <code>PNTS</code> (float triples), <code>FACE</code> (index triples) and <code>EDGE</code> (index pairs). At load time the engine derives vertex→face adjacency (for smooth vertex normals) and edge→face adjacency (for silhouette edges: an edge is on the outline when its two faces have opposite screen-space winding). These are the twelve models, read live from the demo's own data file:</p>
+  <div class="meshes" id="meshes"></div>
+  <h3>The pipeline, per object per frame</h3>
+  <ol>
+    <li><b>Deform</b> — scene-specific functions displace the points: radial wobble, spherical ripple, black-hole lens, ring twist, cone tornado…</li>
+    <li><b>Rotate</b> — three Euler angles built from nested sines, e.g. <code>3·sin(cos(0.008t)+0.009t)</code>; either from the original points or cumulatively in place.</li>
+    <li><b>Normals</b> — face normals from cross products; vertex normals as normalised sums over adjacent faces; the normals' xy become <b>environment-map coordinates</b> (<code>n·127+127</code>).</li>
+    <li><b>Project</b> — <code>x·invz + cx</code>, <code>cy + y·invz·0.83</code> (the 0.83 is the 320×200 pixel aspect), <code>invz = 1/(z/focal + dist)</code>.</li>
+    <li><b>Cull &amp; sort</b> — signed screen-space area removes back faces; the survivors are sorted by <code>trunc((z₀+z₁+z₂)·100)</code> with a quicksort (painter's algorithm — there is no z-buffer).</li>
+    <li><b>Rasterise</b> — one of ten modes: environment-mapped faces (0, 1), environment + surface texture in one pass (2, 3), UV-textured faces (4), silhouette lines (5, 6), all edges (7, 8), or sprite points sized by 1/z (9).</li>
+  </ol>
+  <p class="dim">Every one of these stages — including each rasterised pixel — is checked against the original machine code, see below.</p>
+</section>
+
+<section id="port">
+  <h2>How it was ported</h2>
+  <ol>
+    <li><b>Unpacking.</b> UPX 0.82's PMODE/W format is not understood by today's <code>upx -d</code>. The packer's own stub was emulated with Unicorn until it jumped to the original entry point, and the memory image dumped.</li>
+    <li><b>Assets.</b> The 2.4&nbsp;MB tail of the EXE is a container of 63 LZW files; the decoder above was ported to JS and validated on every file.</li>
+    <li><b>Decompilation.</b> Ghidra (headless), with its calling-convention model patched to Watcom's register convention (EAX, EDX, EBX, ECX), the <code>ftrunc</code> helper declared as a function taking <code>ST0</code>, and float constants inlined, then read next to the raw asm. Several routines are self-modifying and had to be read in assembly.</li>
+    <li><b>Differential testing.</b> Each ported function is run next to the <i>original machine code</i> (executed in an emulator, with its real data) on the same inputs and the output buffers are compared byte for byte: 216 vectors for the 2D library, 206 checks for the 3D engine (every rendered pixel identical), all 10&nbsp;448 blocks of the music, and per-scene effect functions. Where numbers differ it is documented: x87 keeps 80-bit intermediates and JS has 64-bit doubles, so a handful of floating-point deformers differ in the last bit.</li>
+    <li><b>Scenes.</b> Each of the eleven loops of <code>main()</code> was transcribed from the assembly, then compared with a capture of the original running in DOSBox.</li>
+  </ol>
+  <h3>Traps worth knowing</h3>
+  <ul>
+    <li>Unicorn starts the x87 with a 24-bit-precision control word; the real program runs after <code>fninit</code> (64-bit). Tests silently disagreed until this was found.</li>
+    <li>The DOSBox capture shows <b>red and blue swapped</b> in VESA 32-bit modes (verified with a test program drawing pure red): the screen dword is <code>0x00RRGGBB</code>, and the warm orange of the title picture is the true colour.</li>
+    <li>A bug that only exists in a browser: canvas <code>ImageData</code> is a <i>clamped</i> array, so <code>out[o] = d &gt;&gt;&gt; 8</code> saturates instead of wrapping; the Node tests used a plain <code>Uint8Array</code>.</li>
+    <li>The decompiler hid that the rasteriser expects triangle vertices in memory as (v0, v2, v1); without it the fillers draw nothing.</li>
+  </ul>
+</section>
+
+<section id="credits">
+  <h2>Credits</h2>
+  <p><b>ZILOG</b> is © 1999 <b>Sunflower</b> — code, graphics and music by <b>mrock, falcon, visualize and voomie</b>. Sound system: <i>Useless Sound System v1.04</i> by FreddyV/Useless. DOS extender: PMODE/W by Daredevil &amp; Tran. This site is a fan study and port: original artwork, models and music are the property of their authors and are shown here with credit; tell us and they go.</p>
+</section>
+</main>
+<footer>Ported with a lot of <span class="mono">objdump</span>, Ghidra and Unicorn. Original release: ftp.agravedict.art.pl, 1999.</footer>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

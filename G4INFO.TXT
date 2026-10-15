@@ -1,0 +1,5 @@
+   TYPE: dos demo
+  TITLE: zilog
+  GROUP: sunflower
+AUTHORS: mrock falcon visualize voomie
+   NOTE: seems to work under windows, but please run from dos.
