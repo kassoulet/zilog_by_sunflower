@@ -3,3 +3,4 @@ raw/
 tools/out/
 node_modules/
 __pycache__/
+*.avi
