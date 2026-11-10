@@ -25,6 +25,9 @@ Every ported function is compared with the **original machine code** executed un
 `run_g1.sh … run_g5.sh` (scene-specific functions). Whole frames were compared by eye with a DOSBox capture.
 Needs python3 with `unicorn` + `capstone` and node ≥ 20. `ZILOG.EXE` (original) is expected in the repo root for `tools/extract.mjs`.
 
+## CRT option
+The player has a "CRT" checkbox (key `C`, remembered in localStorage, default off): a CSS overlay with scanlines (one band per source row) and a faint vignette, display only. The picture is then sized to a whole number k of device pixels per source row (4:3) so the bands never beat; below k = 2 the option is greyed out.
+
 ## Credits and rights
 ZILOG is © 1999 Sunflower. Original artwork, models and music are theirs and are shown with credit; contact the maintainers to have anything removed.
 Sound system: Useless Sound System v1.04 (FreddyV/Useless). DOS extender: PMODE/W (Daredevil & Tran).

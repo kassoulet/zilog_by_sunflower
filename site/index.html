@@ -21,6 +21,7 @@
     <div class="screen" id="stage">
       <canvas id="screen" width="320" height="200" aria-label="ZILOG demo, 320 by 200"></canvas>
       <div class="badge" id="badge"></div>
+      <div class="crt" id="crt" hidden></div>
       <div class="big" id="big"><button type="button" disabled>Loading…</button></div>
     </div>
     <div class="controls">
@@ -29,11 +30,12 @@
       <button id="next" title="Next scene (→)" aria-label="Next scene">⏭</button>
       <div class="grow"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Position"></div>
       <span class="time" id="time">0:00 / 0:00</span>
+      <label class="crtopt" id="crtopt" title="CRT scanlines (C)"><input type="checkbox" id="crtbox"> CRT</label>
       <button id="fs" title="Fullscreen (f)" aria-label="Fullscreen">⛶</button>
     </div>
     <div class="scenes" id="chips"></div>
   </div>
-  <p class="hint">Space = pause · ← / → = previous / next scene · F = fullscreen. Native resolution is 320×200, scaled with nearest-neighbour like a CRT in a 1999 bedroom would not have bothered to.</p>
+  <p class="hint">Space = pause · ← / → = previous / next scene · F = fullscreen · C = CRT scanlines. Native resolution is 320×200, scaled with nearest-neighbour like a CRT in a 1999 bedroom would not have bothered to.</p>
 </section>
 
 <section id="retro">

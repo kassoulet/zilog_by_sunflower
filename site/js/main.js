@@ -40,10 +40,27 @@ async function boot() {
   playBtn.onclick = big.onclick = toggle;
   $('#prev').onclick = () => pl.skip(-1); $('#next').onclick = () => pl.skip(1);
   $('#fs').onclick = () => pl.fullscreen();
+  // CRT overlay: scanline period = integer k device px per source row (no moire); needs k >= 2, else the plain picture is shown.
+  const SRC_ROWS = 200, stage = $('#stage'), crt = $('#crt'), crtBox = $('#crtbox'), crtOpt = $('#crtopt');
+  try { crtBox.checked = localStorage.crt === '1'; } catch {}
+  const layoutCrt = () => {
+    const dpr = devicePixelRatio, availH = Math.min(stage.clientHeight, stage.clientWidth * 3 / 4) * dpr, k = Math.floor(availH / SRC_ROWS);
+    const ok = k >= 2, on = ok && crtBox.checked;
+    crtOpt.classList.toggle('off', !ok); crtBox.disabled = !ok;
+    crtOpt.title = ok ? 'CRT scanlines (C)' : 'CRT scanlines unavailable: the window is too small';
+    crt.hidden = !on;
+    const h = k * SRC_ROWS / dpr, w = Math.round(h * 4 / 3 * dpr) / dpr, l = Math.round((stage.clientWidth - w) / 2 * dpr) / dpr, t = Math.round((stage.clientHeight - h) / 2 * dpr) / dpr;
+    canvas.style.cssText = on ? `width:${w}px;height:${h}px;margin:auto` : '';
+    crt.style.cssText = on ? `left:${l}px;top:${t}px;width:${w}px;height:${h}px;--p:${k / dpr}px` : '';
+  };
+  new ResizeObserver(layoutCrt).observe(stage); addEventListener('resize', layoutCrt); addEventListener('fullscreenchange', layoutCrt);
+  matchMedia(`(resolution:${devicePixelRatio}dppx)`).addEventListener('change', layoutCrt, { once: true });
+  const setCrt = v => { crtBox.checked = v; try { localStorage.crt = v ? '1' : '0'; } catch {} layoutCrt(); };
+  crtBox.onchange = () => setCrt(crtBox.checked); layoutCrt();
   seek.oninput = () => pl.seek(seek.value / 1000 * demo.duration);
   addEventListener('keydown', e => {
     if (e.target.matches('input,button')) return;
-    if (e.code === 'Space') { e.preventDefault(); toggle(); } else if (e.key === 'f') pl.fullscreen();
+    if (e.code === 'Space') { e.preventDefault(); toggle(); } else if (e.key === 'f') pl.fullscreen(); else if (e.key === 'c' && !crtBox.disabled) setCrt(!crtBox.checked);
     else if (e.key === 'ArrowRight' || e.key === 'n') pl.skip(1); else if (e.key === 'ArrowLeft' || e.key === 'p') pl.skip(-1);
   });
   time.textContent = '0:00 / ' + fmt(demo.duration);
