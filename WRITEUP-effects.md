@@ -225,6 +225,75 @@ vertex with its back vertex and 0x219e8 pushes the back vertices radially away f
 the light-ray burst on the beat), drawn as grey additive faces and depth-coloured edges; finally a 20x20 wire grid rippled by 0x206e0. The credits (mrock, falcon, visualize, voomie) fade in line by
 line (`pos > 0xe18 + 6k`), alpha 255 -> 0 at 0.9/tick by patching the string's alpha byte.
 
+## 3b. 2D/3D art used
+
+All art is stored in the "DATA?" block appended to `ZILOG.EXE`: 63 files, each `[u32 size, char name[32], 'LZW:' u32 outLen, bits]` (GIF-style LZW, LSB-first, 9..12-bit codes, 0x100 clear, 0x101 end). They are extracted to `raw/` (`tools/extract.mjs`) and decoded in the port by `site/js/core/gfx.js` (GFX), `site/js/lib/fx2d-blit.js` `expandRle8` (RLE) and `site/js/core/mob.js` (MOB). The previews below were decoded independently with a Pillow script (`python3 -I`), applying the rules listed here.
+
+### GFX images
+
+Header (22 bytes): `'GFX:'`, u32 w, u32 h, u8 bpp (8 or 0x18), u8 flags, u32 dataLen, u32 palLen. Flags: 1 = RLE, 2 = delta bytes (running sum mod 256 over the whole data), 4 = planar channels. 0x18 images are 3 planes of w*h bytes in B,G,R order (no palette, true colour); 8 bpp images are greyscale (palLen 0). The 8 bpp, flags=1 files are an RLE stream of unaligned u32 counts: `0xffffffff` = end, top bit set = literal run of `count & 0x7fffffff` bytes, otherwise skip `count` zero pixels. Colour counts below are distinct values in the decoded image.
+
+| Group | Files | Size | Format | Colours |
+|---|---|---|---|---|
+| fullpics (flags 6) | circles, handdraw, simulcra, truesimu | 320x200 | 24 bpp | 41009, 33457, 40842, 37781 |
+| fullpics (flags 6) | spot, stripe | 320x256 | 24 bpp | 37406, 58835 |
+| fullpics masks (flags 2) | hmask2, mask2, mask5, mask7 | 320x200 | 8 bpp grey | 256, 253, 227, 256 |
+| textures (flags 6) | cityligh, cityscap, env1, max_t2, pipesd | 256x256 | 24 bpp | 45041, 23451, 21124, 19570, 28606 |
+| textures (flags 2) | lites2, pip_h, plzm | 256x256 | 8 bpp grey | 236, 256, 255 |
+| textures | cone_kol 12x80 (flags 6, 892 colours), silh_kol 45x45 (flags 6, 1968), zilog2 20x128 (8 bpp, flags 2, 155), env2 256x2 (24 bpp, flags 0, 4) | | | |
+| smalpics (flags 1) | aph1..aph4 | 320x200 | 24 bpp, plain file | 334, 16, 346, 529 |
+| smalpics (flags 1) | jp01 02 03 05 08 09 10 11 13..20, kielon | 320x200 | 8 bpp grey, RLE in file (2.7 to 12.9 KB each) | 59 to 256 |
+| other | dummy (8 bpp, flags 0), dummy32 (24 bpp, flags 4) | 320x200 | | 1 (all zero) |
+| fonts (flags 0, 8 bpp) | cupertin 1128x23 (17 values), sysf 356x7 (2), verd_sm 609x12 (18), verdana 1008x16 (17) | | one strip per font | |
+
+Usage (from the port code and `re/` notes): `3b_2` knot (scene 0) takes its per-vertex colours from `silh_kol` (gold gradient); `b2` + `max_t2` blob (scene 2); `kph2` + `env1` (scene 3); `q1_` + `env1` (scene 4); `pipesd` + `lites2` (scene 3); `cityscap` surface texture (scene 6); `cityligh` and `stripe` credits and scenes 8/9 backgrounds; `cone_kol` colours of the cone sprites; `pip_h` is the source of the bump displacement map; `plzm` plasma strip rows (scenes 6 to 8); `zilog2` dither dots and scene 9; masks: `mask2` fade-in (scene 2), `mask5` exit wipe (scene 1), `mask7` cross-fade (scene 4), `hmask2` alpha mask (scene 8); `jp09` scene 2 flash, `jp01 02 03 05 08 10 11 13` additive flashes (sync&7), `jp13..jp20` difference blends, `aph1..4` four-frame flash at order 43, `dummy` initial blur-target pixels of scene 7. Fonts: `cupertin` in the common g1/g3 code, `verdana` and `verd_sm` in the g5/scene-7 code; `sysf`, `kielon`, `dummy32` and `env2` are not referenced by `site/js`. Each font strip splits into 94 glyphs at all-zero pixel columns (checked on all four).
+
+Figures: [full pictures and masks](figures/art_fullpics.png), [textures](figures/art_textures.png), [small pictures, jp flashes, dummies](figures/art_smalpics.png), [font strips](figures/art_fonts.png).
+
+![fullpics](figures/art_fullpics.png)
+![textures](figures/art_textures.png)
+![smalpics](figures/art_smalpics.png)
+![fonts](figures/art_fonts.png)
+
+### Palette file
+
+`raw/pal.sc` (803 bytes): `RIX3` header (w=5, h=5, 10-byte header), 768-byte 6-bit RGB palette at file offset 10, then 25 pixels. It feeds the 256x256 shade LUT built at `0x15168`. [Palette preview](figures/art_pal_sc.png) (values scaled v*255/63).
+
+### MOB meshes
+
+`'MOB:'` u32 size, then chunks `PNTS` (n x 3 float), `FACE` (n x 3 u32), `EDGE` (n x 2 u32). Counts read from the files:
+
+| File | Bytes | Vertices | Faces | Edges | Used by |
+|---|---|---|---|---|---|
+| 3b_2 | 121424 | 2002 | 4060 | 6081 | scene 0 knot |
+| b2 | 102924 | 1763 | 3406 | 5108 | scene 2 blob |
+| cones3 | 32532 | 909 | 1800 | none | 101 rings of 9 points (909 sprites) |
+| cub_tun2 | 44852 | 963 | 1386 | 2079 | tunnel |
+| cyl | 18888 | 572 | 1000 | none | scene 8 |
+| hexp_on2 | 8852 | 245 | 210 | 420 | hexagon tiles (flat, z = -5.6) |
+| k_1 | 61496 | 1026 | 2048 | 3072 | scene 6 |
+| kph2 | 86600 | 1446 | 2884 | 4326 | scene 3 |
+| q1_ | 134180 | 2233 | 4472 | 6711 | scene 4 |
+| sph1024 | 30776 | 514 | 1024 | 1536 | 1024 bubbles |
+| zilog1 | 14168 | 242 | 468 | 702 | credits, front half |
+| zilog1_o | 14288 | 236 | 476 | 714 | credits, back half |
+
+Most meshes are normalised to a [-500, 500] cube (cones3, cub_tun2, cyl, q1_, hexp_on2 and the zilog1 pair are not). Wireframes: [all 12](figures/art_meshes_wire.png) (faces drawn, edges where there are no faces).
+
+![meshes](figures/art_meshes_wire.png)
+
+### Generated in code
+
+- `radialCosSpot` (0x14639): 256x256 byte soft disc, 255*(0.5+0.5cos(r/40.4)), r clamped to 127, rows stretched by 1.17.
+- `screenBlendTables` (0x14834): two 64 KB tables, T1[a<<8|b] = 255-((255-a)(255-b)>>8), T2 = ~T1.
+- `colorMatrixTables` (0x148c4): 9x256 int32 tables, 8.24 fixed point.
+- `bumpDisplacementMap` (0x14b3d): u16 displacement map derived from `pip_h`.
+- `cosCosPlasma` (0x14c51): 256x256 bytes, 16+56(1+cos)(1+cos).
+- `radialRayTables` (0x14d0b): 512 rays x 188 steps.
+- `paletteShadeLut` (0x15168): from `pal.sc`.
+- Fonts are built from the strips by `buildFont` (0x174fe).
+- Scene-7 lattice: 10x10x6 = 600 points, 3160 edges, no faces; 5 concentric 26-gons of radius 800; credits grid `f_1b960(20,20,50)`; sin tables.
+
 ## 4. What is exact and what is not
 
 | part | status |
