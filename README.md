@@ -31,3 +31,11 @@ The player has a "CRT" checkbox (key `C`, remembered in localStorage, default of
 ## Credits and rights
 ZILOG is © 1999 Sunflower. Original artwork, models and music are theirs and are shown with credit; contact the maintainers to have anything removed.
 Sound system: Useless Sound System v1.04 (FreddyV/Useless). DOS extender: PMODE/W (Daredevil & Tran).
+
+## Write-ups on the site
+
+The write-ups are published as HTML next to the player (`site/writeups/`, generated from `WRITEUP-*.md` and the referenced `figures/`; needs pandoc). After editing a write-up, regenerate with:
+
+```
+../../tools/mkwriteups.sh . site    # shared script: demoports/tools/mkwriteups.sh REPO_DIR PUBLISH_SUBDIR
+```
